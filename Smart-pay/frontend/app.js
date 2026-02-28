@@ -88,23 +88,22 @@ socket.on('card-scanned', (data) => {
     addLog(`🔍 Card detected: ${uid}`);
 
     lastScannedUid = uid;
-    lastScannedBalance = deviceBalance;
 
     // Update shared display
     cardVisual.classList.add('active');
     cardUidDisplay.textContent = uid;
-    cardBalanceDisplay.textContent = `$${deviceBalance.toFixed(2)}`;
 
     // Update role-specific fields
     adminUid.value = uid;
-    adminCurrentBalance.value = `$${deviceBalance.toFixed(2)}`;
     adminTopupBtn.disabled = false;
 
     cashierUid.value = uid;
-    cashierCurrentBalance.value = `$${deviceBalance.toFixed(2)}`;
     if (products.length > 0) {
         cashierPayBtn.disabled = false;
     }
+
+    // Fetch actual balance from database
+    socket.emit('request-balance', { uid });
 
     statusDisplay.innerHTML = `
     <div class="data-row">
@@ -113,7 +112,7 @@ socket.on('card-scanned', (data) => {
     </div>
     <div class="data-row">
       <span class="data-label">Balance:</span>
-      <span class="data-value" style="color: #10b981;">$${deviceBalance.toFixed(2)}</span>
+      <span class="data-value" style="color: #10b981;">Fetching from database...</span>
     </div>
     <div class="data-row">
       <span class="data-label">Status:</span>
@@ -181,10 +180,31 @@ socket.on('products-response', (data) => {
     }
 });
 
-// Balance response
+// Balance response - fetched from database
 socket.on('balance-response', (data) => {
-    if (data.success) {
-        addLog(`Balance for ${data.uid}: $${data.balance.toFixed(2)}`);
+    if (data.success && data.uid === lastScannedUid) {
+        const balance = data.balance !== null ? data.balance : 0;
+        lastScannedBalance = balance;
+
+        // Update shared display
+        cardBalanceDisplay.textContent = `$${balance.toFixed(2)}`;
+
+        // Update admin panel
+        adminCurrentBalance.value = `$${balance.toFixed(2)}`;
+
+        // Update cashier panel
+        cashierCurrentBalance.value = `$${balance.toFixed(2)}`;
+
+        // Update status display
+        const statusRow = statusDisplay.querySelector('.data-row:nth-child(2)');
+        if (statusRow) {
+            statusRow.innerHTML = `
+      <span class="data-label">Balance:</span>
+      <span class="data-value" style="color: #10b981;">$${balance.toFixed(2)}</span>
+    `;
+        }
+
+        addLog(`📊 Balance loaded from DB: $${balance.toFixed(2)}`);
     }
 });
 
