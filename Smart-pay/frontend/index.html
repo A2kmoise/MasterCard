@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart-Pay RFID Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Smart-<span>Pay</span></h1>
+      <p>RFID Wallet Management System</p>
+      <div class="role-selector">
+        <button id="role-admin" class="role-btn active">
+          <span class="icon">👤</span> Admin
+        </button>
+        <button id="role-cashier" class="role-btn">
+          <span class="icon">💳</span> Cashier
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <!-- CARD STATUS (SHARED) -->
+      <div class="glass-card card-status">
+        <h2>Card Status</h2>
+        <div class="card-visual-container">
+          <div id="card-visual" class="card-visual">
+            <div class="card-chip"></div>
+            <div class="card-number">**** **** **** ****</div>
+            <div class="card-details">
+              <div class="card-holder-group">
+                <span class="card-label">CARD UID</span>
+                <span id="card-uid-display" class="card-value">--</span>
+              </div>
+              <div class="card-balance-group">
+                <span class="card-label">BALANCE</span>
+                <span id="card-balance-display" class="card-value">$0.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="status-display" class="status-content">
+          <div class="status-placeholder">Scan an RFID card to begin...</div>
+        </div>
+      </div>
+
+      <!-- ADMIN INTERFACE -->
+      <div id="admin-panel" class="glass-card admin-interface">
+        <h2>Top-Up Card</h2>
+        <div class="form-group">
+          <label for="admin-uid">Card UID</label>
+          <input type="text" id="admin-uid" placeholder="Auto-populated from scan" readonly>
+        </div>
+        <div class="form-group">
+          <label for="admin-current-balance">Current Balance</label>
+          <input type="text" id="admin-current-balance" placeholder="$0.00" readonly>
+        </div>
+        <div class="form-group">
+          <label for="admin-amount">Top-Up Amount ($)</label>
+          <input type="number" id="admin-amount" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <button id="admin-topup-btn" class="btn-primary" disabled>
+          <span class="icon">➕</span> Confirm Top Up
+        </button>
+        <div id="admin-response" class="response-message"></div>
+      </div>
+
+      <!-- CASHIER INTERFACE -->
+      <div id="cashier-panel" class="glass-card cashier-interface" style="display: none;">
+        <h2>Process Payment</h2>
+        <div class="form-group">
+          <label for="cashier-uid">Card UID</label>
+          <input type="text" id="cashier-uid" placeholder="Auto-populated from scan" readonly>
+        </div>
+        <div class="form-group">
+          <label for="cashier-current-balance">Current Balance</label>
+          <input type="text" id="cashier-current-balance" placeholder="$0.00" readonly>
+        </div>
+        <div class="form-group">
+          <label for="cashier-product">Product / Service</label>
+          <select id="cashier-product">
+            <option value="">-- Select Product --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="cashier-quantity">Quantity</label>
+          <input type="number" id="cashier-quantity" placeholder="1" value="1" min="1">
+        </div>
+        <div class="form-group">
+          <label for="cashier-total-cost">Total Cost</label>
+          <input type="text" id="cashier-total-cost" placeholder="$0.00" readonly>
+        </div>
+        <button id="cashier-pay-btn" class="btn-primary" disabled>
+          <span class="icon">💰</span> Process Payment
+        </button>
+        <div id="cashier-response" class="response-message"></div>
+      </div>
+    </main>
+
+    <!-- ACTIVITY LOG -->
+    <section class="activity-log">
+      <h3>📋 Transaction Log</h3>
+      <ul id="log-list" class="log-list"></ul>
+    </section>
+
+    <footer>
+      <p>Team: <strong>iot_shield_2026</strong> | Status: <span id="connection-status" class="status-online">●</span>
+      </p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
