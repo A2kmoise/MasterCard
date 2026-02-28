@@ -12,11 +12,8 @@ let db = null;
 async function connectDB() {
     try {
         client = new MongoClient(MONGODB_URI, {
-            serverApi: {
-                version: ServerApiVersion.v1,
-                strict: true,
-                deprecationErrors: true,
-            }
+            maxPoolSize: 10,
+            minPoolSize: 5
         });
 
         await client.connect();
