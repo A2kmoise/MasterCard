@@ -119,3 +119,6 @@ Smart-pay/
 ## 📝 Team ID: iot_shield_2026
 
 **Status**: Production Ready | **Updated**: February 2026
+
+### Live url
+**http://157.173.101.159:9201/**
