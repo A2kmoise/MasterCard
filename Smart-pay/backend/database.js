@@ -1,4 +1,5 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
+require('dotenv').config();
 
 // MongoDB Atlas connection (update with your connection string)
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://abayomoise950_db_user:1k5N4f5F2p3ceZgW@cards.ppseziu.mongodb.net/smartpay?retryWrites=true&w=majority";
