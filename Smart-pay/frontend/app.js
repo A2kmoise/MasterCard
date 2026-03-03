@@ -9,6 +9,9 @@ let currentRole = 'admin'; // 'admin' or 'cashier'
 let lastScannedUid = null;
 let lastScannedBalance = null;
 let products = [];
+let authToken = localStorage.getItem('smart_pay_token');
+let currentUser = JSON.parse(localStorage.getItem('smart_pay_user'));
+let isRegisterMode = false;
 
 // ========================================
 // DOM ELEMENTS
@@ -19,11 +22,21 @@ const cardUidDisplay = document.getElementById('card-uid-display');
 const cardBalanceDisplay = document.getElementById('card-balance-display');
 const statusDisplay = document.getElementById('status-display');
 const logList = document.getElementById('log-list');
+const appLayout = document.querySelector('.app-layout');
 const connectionStatus = document.getElementById('connection-status');
 
-// Role selector
-const roleAdminBtn = document.getElementById('role-admin');
-const roleCashierBtn = document.getElementById('role-cashier');
+// Layout Elements
+const sidebar = document.getElementById('sidebar');
+const mobileOpen = document.getElementById('mobile-open');
+const mobileClose = document.getElementById('mobile-close');
+const userDisplayName = document.getElementById('user-display-name');
+const navItems = document.querySelectorAll('.nav-item');
+const dashboardSections = document.querySelectorAll('.dashboard-section');
+const roleIcon = document.getElementById('role-icon');
+const roleName = document.getElementById('role-name');
+const dashboardTitleContainer = document.getElementById('dashboard-title-container');
+
+// Interface Panels
 const adminPanel = document.getElementById('admin-panel');
 const cashierPanel = document.getElementById('cashier-panel');
 
@@ -43,27 +56,186 @@ const cashierTotalCost = document.getElementById('cashier-total-cost');
 const cashierPayBtn = document.getElementById('cashier-pay-btn');
 const cashierResponse = document.getElementById('cashier-response');
 
+// Auth elements
+const loginOverlay = document.getElementById('login-overlay');
+const loginForm = document.getElementById('login-form');
+const logoutBtn = document.getElementById('logout-btn');
+const loginError = document.getElementById('login-error');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+
+// Auth Toggle elements
+const authTitle = document.getElementById('auth-title');
+const authDesc = document.getElementById('auth-desc');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const toggleAuthBtn = document.getElementById('toggle-auth-btn');
+const toggleText = document.getElementById('toggle-text');
+
+
+
 // ========================================
-// ROLE MANAGEMENT
+// AUTHENTICATION
 // ========================================
-roleAdminBtn.addEventListener('click', () => {
-    currentRole = 'admin';
-    roleAdminBtn.classList.add('active');
-    roleCashierBtn.classList.remove('active');
-    adminPanel.style.display = 'block';
-    cashierPanel.style.display = 'none';
-    clearResponses();
-    addLog('Switched to Admin interface');
+function checkAuth() {
+    if (authToken && currentUser) {
+        loginOverlay.style.display = 'none';
+        appLayout.style.display = 'flex';
+        userDisplayName.textContent = currentUser.username;
+        addLog(`👋 Welcome back, ${currentUser.username}`);
+
+        // Initialize role-based views
+        const navManagement = document.getElementById('nav-management');
+        if (currentUser.role === 'cashier') {
+            adminPanel.style.display = 'none';
+            cashierPanel.style.display = 'block';
+            roleIcon.textContent = '💳';
+            roleName.textContent = 'Cashier Dashboard';
+            if (navManagement) navManagement.querySelector('a').innerHTML = '<span class="icon">💰</span> Payments';
+            addLog('💼 Cashier Dashboard active');
+        } else {
+            adminPanel.style.display = 'block';
+            cashierPanel.style.display = 'none';
+            roleIcon.textContent = '👤';
+            roleName.textContent = 'Admin Dashboard';
+            if (navManagement) navManagement.querySelector('a').innerHTML = '<span class="icon">➕</span> Top-Up';
+            addLog('🔧 Admin Dashboard active');
+        }
+        dashboardTitleContainer.style.display = 'flex';
+
+        switchSection('overview');
+    } else {
+        loginOverlay.style.display = 'flex';
+        appLayout.style.display = 'none';
+    }
+}
+
+// ========================================
+// NAVIGATION LOGIC
+// ========================================
+
+function switchSection(sectionId) {
+    // Update Nav Items
+    navItems.forEach(item => {
+        if (item.dataset.section === sectionId) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+
+    // Update Dashboard Sections
+    dashboardSections.forEach(section => {
+        if (section.id === `section-${sectionId}`) {
+            section.classList.add('active');
+        } else {
+            section.classList.remove('active');
+        }
+    });
+
+    // Close mobile sidebar on navigate
+    sidebar.classList.remove('open');
+}
+
+// Event Listeners for Navigation
+navItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+        e.preventDefault();
+        const sectionId = item.dataset.section;
+        switchSection(sectionId);
+    });
 });
 
-roleCashierBtn.addEventListener('click', () => {
-    currentRole = 'cashier';
-    roleCashierBtn.classList.add('active');
-    roleAdminBtn.classList.remove('active');
-    cashierPanel.style.display = 'block';
-    adminPanel.style.display = 'none';
-    clearResponses();
-    addLog('Switched to Cashier interface');
+// Mobile Sidebar Toggles
+if (mobileOpen) {
+    mobileOpen.addEventListener('click', () => sidebar.classList.add('open'));
+}
+if (mobileClose) {
+    mobileClose.addEventListener('click', () => sidebar.classList.remove('open'));
+}
+
+// Auth Toggle Handler (using delegation to avoid losing listener on HTML change)
+if (toggleText) {
+    toggleText.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'toggle-auth-btn') {
+            e.preventDefault();
+            isRegisterMode = !isRegisterMode;
+            updateAuthUI();
+        }
+    });
+}
+
+function updateAuthUI() {
+    if (isRegisterMode) {
+        authTitle.textContent = '📝 Cashier Registration';
+        authDesc.textContent = 'Create a new cashier account';
+        authSubmitBtn.textContent = 'Register New Cashier';
+        toggleText.innerHTML = 'Already have an account? <a href="#" id="toggle-auth-btn">Login here</a>';
+    } else {
+        authTitle.textContent = '🔐 System Login';
+        authDesc.textContent = 'Please enter your credentials to access the dashboard';
+        authSubmitBtn.textContent = 'Login to Dashboard';
+        toggleText.innerHTML = 'New cashier? <a href="#" id="toggle-auth-btn">Register here</a>';
+    }
+
+    loginError.textContent = '';
+    usernameInput.value = '';
+    passwordInput.value = '';
+}
+
+loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    loginError.textContent = '';
+
+    const username = usernameInput.value;
+    const password = passwordInput.value;
+
+    const endpoint = isRegisterMode ? '/api/register' : '/api/login';
+
+    try {
+        const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, role: 'cashier' })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            if (isRegisterMode) {
+                isRegisterMode = false;
+                toggleAuthBtn.click(); // Switch back to login
+                loginError.className = 'response-message success';
+                loginError.textContent = 'Registration successful! Please login.';
+                addLog(`✓ Registered new cashier: ${username}`);
+            } else {
+                authToken = result.token;
+                currentUser = result.user;
+                localStorage.setItem('smart_pay_token', authToken);
+                localStorage.setItem('smart_pay_user', JSON.stringify(currentUser));
+
+                usernameInput.value = '';
+                passwordInput.value = '';
+                checkAuth();
+                addLog(`✓ Logged in as: ${currentUser.username}`);
+            }
+        } else {
+            loginError.className = 'response-message error';
+            loginError.textContent = result.error || 'Operation failed';
+        }
+    } catch (error) {
+        loginError.className = 'response-message error';
+        loginError.textContent = 'Connection error';
+        console.error('Auth error:', error);
+    }
+});
+
+logoutBtn.addEventListener('click', () => {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('smart_pay_token');
+    localStorage.removeItem('smart_pay_user');
+    checkAuth();
+    addLog('🚪 Logged out');
 });
 
 // ========================================
@@ -231,7 +403,10 @@ adminTopupBtn.addEventListener('click', async () => {
     try {
         const response = await fetch(`${BACKEND_URL}/topup`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
             body: JSON.stringify({
                 uid: lastScannedUid,
                 amount
@@ -313,7 +488,10 @@ cashierPayBtn.addEventListener('click', async () => {
     try {
         const response = await fetch(`${BACKEND_URL}/pay`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
             body: JSON.stringify({
                 uid: lastScannedUid,
                 productId,
@@ -366,4 +544,5 @@ function clearResponses() {
 // ========================================
 // INITIALIZATION
 // ========================================
+checkAuth();
 addLog('Dashboard initialized');
