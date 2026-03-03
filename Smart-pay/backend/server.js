@@ -4,6 +4,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const {
   connectDB,
   updateWalletAtomic,
@@ -12,6 +14,8 @@ const {
   getTransactionHistory,
   getProducts,
   seedProducts,
+  getUserByUsername,
+  createUser,
   closeDB
 } = require('./database');
 
@@ -30,6 +34,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 9201;
 const TEAM_ID = "iot_shield_2026";
 const MQTT_BROKER = "mqtt://157.173.101.159:1883";
+const JWT_SECRET = process.env.JWT_SECRET || "smart-pay-super-secret-key-2026";
 
 // MQTT Topics
 const TOPICS = {
@@ -148,6 +153,26 @@ function setupMQTT() {
 }
 
 // ========================================
+// AUTH MIDDLEWARE
+// ========================================
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Access denied. No token provided.' });
+  }
+
+  try {
+    const verified = jwt.verify(token, JWT_SECRET);
+    req.user = verified;
+    next();
+  } catch (err) {
+    res.status(403).json({ success: false, error: 'Invalid or expired token.' });
+  }
+}
+
+// ========================================
 // WEBSOCKET SETUP
 // ========================================
 io.on('connection', (socket) => {
@@ -195,6 +220,77 @@ io.on('connection', (socket) => {
 // ========================================
 
 /**
+ * POST /api/login
+ * Authenticate user and return JWT
+ */
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username and password required' });
+    }
+
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        username: user.username,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/register
+ * Create a new user (Internal/Setup use)
+ */
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username and password required' });
+    }
+
+    const existingUser = await getUserByUsername(username);
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: 'Username already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await createUser({
+      username,
+      password: hashedPassword,
+      role: role || 'cashier'
+    });
+
+    res.json({ success: true, message: 'User created successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /balance/:uid
  * Retrieve wallet balance for a specific card
  */
@@ -223,14 +319,8 @@ app.get('/balance/:uid', async (req, res) => {
 /**
  * POST /topup
  * Add balance to a card (Admin action)
- * 
- * Request body:
- * {
- *   "uid": "A1B2C3D4",
- *   "amount": 1000
- * }
  */
-app.post('/topup', async (req, res) => {
+app.post('/topup', authenticateToken, async (req, res) => {
   try {
     const { uid, amount } = req.body;
 
@@ -287,16 +377,8 @@ app.post('/topup', async (req, res) => {
 /**
  * POST /pay
  * Deduct balance from a card (Cashier action)
- * 
- * Request body:
- * {
- *   "uid": "A1B2C3D4",
- *   "productId": "123",
- *   "quantity": 2,
- *   "totalAmount": 1000
- * }
  */
-app.post('/pay', async (req, res) => {
+app.post('/pay', authenticateToken, async (req, res) => {
   try {
     const { uid, productId, quantity, totalAmount } = req.body;
 
@@ -449,6 +531,18 @@ async function startup() {
 
     // Setup MQTT
     setupMQTT();
+
+    // Seed default admin user if no users exist
+    const adminUser = await getUserByUsername('admin');
+    if (!adminUser) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await createUser({
+        username: 'admin',
+        password: hashedPassword,
+        role: 'admin'
+      });
+      console.log("✓ Default admin user created (admin / admin123)");
+    }
 
     // Start HTTP server
     server.listen(PORT, '0.0.0.0', () => {

@@ -2,7 +2,7 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 require('dotenv').config();
 
 // MongoDB Atlas connection (update with your connection string)
-const MONGODB_URI = process.env.MONGODB_URI || "***************************************************************************************************************************";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://abayomoise950_db_user:1k5N4f5F2p3ceZgW@cards.ppseziu.mongodb.net/smartpay?retryWrites=true&w=majority&tlsAllowInvalidCertificates=true";
 const DB_NAME = "smartpay";
 
 let client = null;
@@ -60,6 +60,12 @@ async function initializeCollections() {
             await db.collection('transactions').createIndex({ cardUid: 1 });
             await db.collection('transactions').createIndex({ createdAt: 1 });
             console.log("✓ Created 'transactions' collection");
+        }
+
+        if (!collectionNames.includes('users')) {
+            await db.createCollection('users');
+            await db.collection('users').createIndex({ username: 1 }, { unique: true });
+            console.log("✓ Created 'users' collection");
         }
 
     } catch (error) {
@@ -231,31 +237,55 @@ async function getProducts() {
     }
 }
 
-// Seed default products (Transport & Buy)
+// Get user by username
+async function getUserByUsername(username) {
+    try {
+        const user = await db.collection('users').findOne({ username });
+        return user;
+    } catch (error) {
+        throw new Error(`Failed to fetch user: ${error.message}`);
+    }
+}
+
+// Create new user
+async function createUser(userData) {
+    try {
+        const result = await db.collection('users').insertOne({
+            ...userData,
+            createdAt: new Date()
+        });
+        return { success: true, id: result.insertedId };
+    } catch (error) {
+        throw new Error(`Failed to create user: ${error.message}`);
+    }
+}
+
+// Seed default products
 async function seedProducts() {
     try {
         const productsCollection = db.collection('products');
-        const count = await productsCollection.countDocuments();
 
-        if (count === 0) {
-            const defaultProducts = [
+        const defaultProducts = [
+            { name: "Transport", price: 200 },
+            { name: "Buy", price: 100 },
+            { name: "Food", price: 150 },
+            { name: "Clothes", price: 500 }
+        ];
+
+        for (const prod of defaultProducts) {
+            await productsCollection.updateOne(
+                { name: prod.name },
                 {
-                    name: "Transport",
-                    price: 200,
-                    active: true,
-                    createdAt: new Date()
+                    $setOnInsert: {
+                        price: prod.price,
+                        active: true,
+                        createdAt: new Date()
+                    }
                 },
-                {
-                    name: "Buy",
-                    price: 100,
-                    active: true,
-                    createdAt: new Date()
-                }
-            ];
-
-            await productsCollection.insertMany(defaultProducts);
-            console.log("✓ Default products seeded (Transport: 200, Buy: 100)");
+                { upsert: true }
+            );
         }
+        console.log("✓ Essential products verified/seeded");
     } catch (error) {
         console.error("Product seeding error:", error.message);
     }
@@ -278,6 +308,8 @@ module.exports = {
     getWalletBalance,
     getTransactionHistory,
     getProducts,
+    getUserByUsername,
+    createUser,
     seedProducts,
     closeDB
 };
