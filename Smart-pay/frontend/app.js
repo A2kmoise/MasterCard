@@ -188,7 +188,7 @@ socket.on('balance-response', (data) => {
 
         // Update shared display
         cardBalanceDisplay.textContent = `$${balance.toFixed(2)}`;
-
+ 
         // Update admin panel
         adminCurrentBalance.value = `$${balance.toFixed(2)}`;
 
